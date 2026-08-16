@@ -4,6 +4,10 @@ import { InterpreterError } from './errors.js';
 import { SessionStore } from './session-store.js';
 import { MemorySessionStore } from './stores/memory-session-store.js';
 import { SupabaseSessionStore, StoreError } from './stores/supabase-session-store.js';
+import { BUILT_IN_SCHEMAS } from './schema-index.js';
+import { CompletionPipeline } from '../../completion/completion-pipeline.js';
+import { CompletionHandler } from '../../nexus/interview/completion-handler.js';
+import { ClientResolver } from '../../nexus/client-resolver.js';
 
 // ── Helpers ─────────────────────────────────────────────────────
 
@@ -116,6 +120,44 @@ describe('InterviewController', () => {
       expect(result.question.fieldId).toBe('color');
       expect(session.state.isFieldCompleted('name')).toBe(true);
       expect(session.state.isFieldCompleted('phone')).toBe(true);
+    });
+
+    it('seeds first user message fields on start', async () => {
+      const interpreter = {
+        interpret: vi.fn().mockResolvedValue({
+          extractedFields: {
+            clientName: 'Juan',
+            clientPhone: '3415555555',
+            device: 'Samsung A54',
+            problem: 'no prende',
+          },
+          ignoredFields: [],
+          ambiguousFields: [],
+          confidence: 0.95,
+          detectedIntent: 'ANSWER',
+          reasoning: 'User provided name, phone, device and problem',
+          unknownFragments: [],
+          aiUsed: true,
+          latency: 0,
+        }),
+      };
+      const ctrl = new InterviewController({ interpreter });
+      const schema = BUILT_IN_SCHEMAS['repair-request'];
+      const message = 'Hola, soy Juan, quiero reparar mi Samsung A54 porque no prende. Mi teléfono es 3415555555';
+      const result = await ctrl.start(schema, message);
+
+      const session = await ctrl.sessionStore.get(result.sessionId);
+      expect(session.state.getMetadata().initialMessage).toBe(message);
+      expect(session.state.isFieldCompleted('clientName')).toBe(true);
+      expect(session.state.getFieldValue('clientName')).toBe('Juan');
+      expect(session.state.isFieldCompleted('clientPhone')).toBe(true);
+      expect(session.state.getFieldValue('clientPhone')).toBe('3415555555');
+      expect(session.state.isFieldCompleted('device')).toBe(true);
+      expect(session.state.getFieldValue('device')).toBe('Samsung A54');
+      expect(session.state.isFieldCompleted('problem')).toBe(true);
+      expect(session.state.getFieldValue('problem')).toBe('no prende');
+      expect(result.interviewComplete).toBe(true);
+      expect(result.question.question).toBeNull();
     });
 
     it('skips invalid extracted fields from initial message and continues', async () => {
@@ -917,5 +959,248 @@ describe('InterviewController', () => {
       await ctrl.start(schema);
       await expect(ctrl.answer('other-id', { fieldId: 'name', value: 'Juan' })).rejects.toThrow(StoreError);
     });
+  });
+});
+
+// ── Integration: Interview → CompletionPipeline ────────────────
+
+function fakeClientService(existingByPhone = new Map()) {
+  const created = [];
+  return {
+    created,
+    async getClientByPhone(phone) {
+      return existingByPhone.get(phone) || null;
+    },
+    async createClient(data) {
+      const client = { id: `client-${created.length + 1}`, ...data };
+      created.push(client);
+      existingByPhone.set(data.phone, client);
+      return client;
+    },
+  };
+}
+
+function fakeBusinessService(methodName) {
+  const created = [];
+  return {
+    created,
+    async [methodName](data) {
+      const entity = { id: `${created.length + 1}`, ...data };
+      created.push(entity);
+      return entity;
+    },
+  };
+}
+
+describe('completion integration', () => {
+  const REPAIR_SCHEMA = BUILT_IN_SCHEMAS['repair-request'];
+  const BUDGET_SCHEMA = BUILT_IN_SCHEMAS['budget-request'];
+  const PRINT_SCHEMA = BUILT_IN_SCHEMAS['print-order'];
+
+  function buildPipeline(sessionStore, clientService, services) {
+    const clientResolver = new ClientResolver({ clientService });
+    const completionHandler = new CompletionHandler({
+      repairService: services.repairService,
+      budgetService: services.budgetService,
+      printService: services.printService,
+      clientResolver,
+    });
+    return new CompletionPipeline({
+      sessionStore,
+      clientResolver,
+      completionHandler,
+    });
+  }
+
+  it('seeds → completes → pipeline creates entity → status completed → summary', async () => {
+    const sessionStore = new MemorySessionStore();
+    const clientService = fakeClientService();
+    const services = {
+      repairService: fakeBusinessService('createRepair'),
+      budgetService: fakeBusinessService('createBudget'),
+      printService: fakeBusinessService('createPrintOrder'),
+    };
+    const pipeline = buildPipeline(sessionStore, clientService, services);
+    const eventQueue = { enqueued: [], async enqueue(event) { this.enqueued.push(event); } };
+    const eventPipeline = new CompletionPipeline({
+      sessionStore,
+      clientResolver: new ClientResolver({ clientService }),
+      completionHandler: new CompletionHandler({
+        repairService: services.repairService,
+        budgetService: services.budgetService,
+        printService: services.printService,
+        clientResolver: new ClientResolver({ clientService }),
+      }),
+      eventQueue,
+    });
+
+    const interpreter = {
+      interpret: vi.fn().mockResolvedValue({
+        extractedFields: {
+          clientName: 'Juan',
+          clientPhone: '3415555555',
+          device: 'Samsung A54',
+          problem: 'no prende',
+        },
+        ignoredFields: [],
+        ambiguousFields: [],
+        confidence: 0.95,
+        detectedIntent: 'ANSWER',
+        reasoning: 'User provided all required fields',
+        unknownFragments: [],
+        aiUsed: true,
+        latency: 0,
+      }),
+    };
+
+    const ctrl = new InterviewController({ sessionStore, interpreter });
+    const message = 'Hola, soy Juan. Mi teléfono es 3415555555. Tengo un Samsung A54 que no prende.';
+    const result = await ctrl.start(REPAIR_SCHEMA, message);
+
+    // Interview created with all 4 required fields seeded
+    expect(result.sessionId).toBeDefined();
+    expect(result.interviewComplete).toBe(true);
+    expect(result.summary).toBeTruthy();
+
+    const session = await sessionStore.get(result.sessionId);
+    expect(session.state.isFieldCompleted('clientName')).toBe(true);
+    expect(session.state.getFieldValue('clientName')).toBe('Juan');
+    expect(session.state.isFieldCompleted('clientPhone')).toBe(true);
+    expect(session.state.getFieldValue('clientPhone')).toBe('3415555555');
+    expect(session.state.isFieldCompleted('device')).toBe(true);
+    expect(session.state.getFieldValue('device')).toBe('Samsung A54');
+    expect(session.state.isFieldCompleted('problem')).toBe(true);
+    expect(session.state.getFieldValue('problem')).toBe('no prende');
+
+    // CompletionPipeline executes
+    const pipelineResult = await eventPipeline.execute({ sessionId: result.sessionId });
+    expect(pipelineResult.success).toBe(true);
+    expect(pipelineResult.entity.type).toBe('repair');
+    expect(services.repairService.created).toHaveLength(1);
+    expect(services.repairService.created[0].device).toBe('Samsung A54');
+    expect(clientService.created).toHaveLength(1);
+    expect(clientService.created[0].phone).toBe('3415555555');
+
+    // Status is completed
+    const completedSession = await sessionStore.get(result.sessionId);
+    expect(completedSession.status).toBe('completed');
+
+    // Events emitted
+    const eventTypes = eventQueue.enqueued.map(e => e.type);
+    expect(eventTypes).toContain('REPAIR_CREATED');
+    expect(eventTypes).toContain('CLIENT_CREATED');
+  });
+
+  it('completion via answer flow: multi-step interview → pipeline', async () => {
+    const sessionStore = new MemorySessionStore();
+    const clientService = fakeClientService();
+    const services = {
+      repairService: fakeBusinessService('createRepair'),
+      budgetService: fakeBusinessService('createBudget'),
+      printService: fakeBusinessService('createPrintOrder'),
+    };
+    const eventQueue = { enqueued: [], async enqueue(event) { this.enqueued.push(event); } };
+    const pipeline = new CompletionPipeline({
+      sessionStore,
+      clientResolver: new ClientResolver({ clientService }),
+      completionHandler: new CompletionHandler({
+        repairService: services.repairService,
+        budgetService: services.budgetService,
+        printService: services.printService,
+        clientResolver: new ClientResolver({ clientService }),
+      }),
+      eventQueue,
+    });
+
+    const interpreter = {
+      interpret: vi.fn()
+        .mockResolvedValueOnce({
+          extractedFields: { clientName: 'María', clientPhone: '3416666666' },
+          ignoredFields: [], ambiguousFields: [], confidence: 0.9,
+          detectedIntent: 'ANSWER', reasoning: '', unknownFragments: [], aiUsed: true, latency: 0,
+        })
+        .mockResolvedValueOnce({
+          extractedFields: { device: 'iPhone 13' },
+          ignoredFields: [], ambiguousFields: [], confidence: 0.9,
+          detectedIntent: 'ANSWER', reasoning: '', unknownFragments: [], aiUsed: true, latency: 0,
+        })
+        .mockResolvedValueOnce({
+          extractedFields: { problem: 'pantalla rota' },
+          ignoredFields: [], ambiguousFields: [], confidence: 0.9,
+          detectedIntent: 'ANSWER', reasoning: '', unknownFragments: [], aiUsed: true, latency: 0,
+        }),
+    };
+
+    const ctrl = new InterviewController({ sessionStore, interpreter });
+    const startResult = await ctrl.start(REPAIR_SCHEMA);
+    expect(startResult.interviewComplete).toBe(false);
+
+    const answer1 = await ctrl.answerMessage(startResult.sessionId, 'Soy María, mi número es 3416666666');
+    expect(answer1.interviewComplete).toBe(false);
+
+    const answer2 = await ctrl.answerMessage(startResult.sessionId, 'Es un iPhone 13');
+    expect(answer2.interviewComplete).toBe(false);
+
+    const answer3 = await ctrl.answerMessage(startResult.sessionId, 'La pantalla está rota');
+    expect(answer3.interviewComplete).toBe(true);
+
+    // Pipeline
+    const pipelineResult = await pipeline.execute({ sessionId: startResult.sessionId });
+    expect(pipelineResult.success).toBe(true);
+    expect(pipelineResult.entity.type).toBe('repair');
+    expect(services.repairService.created[0].device).toBe('iPhone 13');
+
+    const session = await sessionStore.get(startResult.sessionId);
+    expect(session.status).toBe('completed');
+  });
+
+  it('pipeline skips if already completed (idempotent)', async () => {
+    const sessionStore = new MemorySessionStore();
+    const clientService = fakeClientService();
+    const services = {
+      repairService: fakeBusinessService('createRepair'),
+      budgetService: fakeBusinessService('createBudget'),
+      printService: fakeBusinessService('createPrintOrder'),
+    };
+    const eventQueue = { enqueued: [], async enqueue(event) { this.enqueued.push(event); } };
+    const pipeline = new CompletionPipeline({
+      sessionStore,
+      clientResolver: new ClientResolver({ clientService }),
+      completionHandler: new CompletionHandler({
+        repairService: services.repairService,
+        budgetService: services.budgetService,
+        printService: services.printService,
+        clientResolver: new ClientResolver({ clientService }),
+      }),
+      eventQueue,
+    });
+
+    const interpreter = {
+      interpret: vi.fn().mockResolvedValue({
+        extractedFields: {
+          clientName: 'Carlos',
+          clientPhone: '3417777777',
+          device: 'Notebook Dell',
+          problem: 'no anda',
+        },
+        ignoredFields: [], ambiguousFields: [], confidence: 0.9,
+        detectedIntent: 'ANSWER', reasoning: '', unknownFragments: [], aiUsed: true, latency: 0,
+      }),
+    };
+
+    const ctrl = new InterviewController({ sessionStore, interpreter });
+    const startResult = await ctrl.start(REPAIR_SCHEMA, 'Soy Carlos, 3417777777, Dell, no anda');
+    expect(startResult.interviewComplete).toBe(true);
+
+    const first = await pipeline.execute({ sessionId: startResult.sessionId });
+    expect(first.success).toBe(true);
+    expect(first.skipped).toBe(false);
+    expect(services.repairService.created).toHaveLength(1);
+
+    const second = await pipeline.execute({ sessionId: startResult.sessionId });
+    expect(second.success).toBe(true);
+    expect(second.skipped).toBe(true);
+    expect(services.repairService.created).toHaveLength(1);
+    expect(eventQueue.enqueued).toHaveLength(2);
   });
 });

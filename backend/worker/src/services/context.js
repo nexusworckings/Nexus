@@ -1,4 +1,5 @@
-import { rpc, query } from './supabase.js';
+import { rpc, query } from "./supabase.js";
+import { CONVERSATION_CONTEXT_RULE } from "./nexus/business-context.js";
 
 const DEFAULT_SYSTEM_PROMPT = `Eres el asistente virtual de Tecno San Juan, un negocio de reparaci\u00f3n y servicios tecnol\u00f3gicos en San Juan, Argentina.
 
@@ -18,30 +19,58 @@ REGLAS:
 
 async function getSystemPrompt(env) {
   try {
-    const config = await query(env, 'chatbot_config', { eq: { is_active: 'true' } }, false);
+    const config = await query(
+      env,
+      "chatbot_config",
+      { eq: { is_active: "true" } },
+      false,
+    );
     const row = Array.isArray(config) ? config[0] : config;
-    const system = (row && row.system_prompt && row.system_prompt.trim()) ? row.system_prompt : DEFAULT_SYSTEM_PROMPT;
-    const fallback = (row && row.fallback_message) ? row.fallback_message : 'No dispongo de esa informaci\u00f3n en este momento.';
-    return { system, fallback };
+    const fallback =
+      row && row.fallback_message
+        ? row.fallback_message
+        : "No dispongo de esa información en este momento.";
+    if (row && row.system_prompt && row.system_prompt.trim()) {
+      return { system: row.system_prompt, fallback, source: "db" };
+    }
+    return { system: DEFAULT_SYSTEM_PROMPT, fallback, source: "default" };
   } catch (err) {
-    console.error('Error loading chatbot config:', err);
-    return { system: DEFAULT_SYSTEM_PROMPT, fallback: 'No dispongo de esa informaci\u00f3n en este momento.' };
+    console.error("Error loading chatbot config:", err);
+    return {
+      system: DEFAULT_SYSTEM_PROMPT,
+      fallback: "No dispongo de esa información en este momento.",
+      source: "default",
+    };
   }
+}
+
+/**
+ * Fuente can\u00f3nica y estructurada del Business/Policy Context.
+ * Consumida por el Planner, el Responder y el webhook de WhatsApp.
+ */
+export async function resolveBusinessContext(env) {
+  const prompt = await getSystemPrompt(env);
+  return Object.freeze({
+    policy: prompt.system,
+    fallback: prompt.fallback,
+    source: prompt.source || "default",
+    version: "1.0.0",
+  });
 }
 
 export async function buildContext(env, userMessage) {
   try {
-    let contexto = '';
+    let contexto = "";
 
     try {
-      const resumen = await rpc(env, 'get_business_context', {});
-      if (resumen) contexto += resumen + '\n\n';
+      const resumen = await rpc(env, "get_business_context", {});
+      if (resumen) contexto += resumen + "\n\n";
     } catch (e) {
-      console.warn('Error fetching business context:', e);
+      console.warn("Error fetching business context:", e);
     }
 
     try {
-      const results = await rpc(env, 'search_all_tables', {
+      const results = await rpc(env, "search_all_tables", {
         search_query: userMessage,
       });
 
@@ -49,32 +78,50 @@ export async function buildContext(env, userMessage) {
         const searchParts = results.map((row, index) => {
           return `[${index + 1}] ${row.content} (Fuente: ${row.table_name})`;
         });
-        contexto += 'Resultados de búsqueda:\n' + searchParts.join('\n\n');
+        contexto += "Resultados de búsqueda:\n" + searchParts.join("\n\n");
       }
     } catch (e) {
-      console.warn('Error searching tables:', e);
+      console.warn("Error searching tables:", e);
     }
 
-    return contexto || '';
+    return contexto || "";
   } catch (err) {
-    console.error('Error building context:', err);
-    return '';
+    console.error("Error building context:", err);
+    return "";
   }
 }
 
-export async function buildMessages(env, context, userMessage, chatContext, session = null) {
-  const { system, fallback } = await getSystemPrompt(env);
+export async function buildMessages(
+  env,
+  context,
+  userMessage,
+  chatContext,
+  session = null,
+  options = {},
+) {
+  const { system, fallback } = options.policy
+    ? { system: options.policy.policy, fallback: options.policy.fallback }
+    : await getSystemPrompt(env);
 
   let systemContent = system;
+
+  if (options.conversationContext) {
+    systemContent += `\n\nCONTEXTO DE CONVERSACIÓN (datos estructurados del turno):\n${options.conversationContext}`;
+    systemContent += `\n\n${CONVERSATION_CONTEXT_RULE}`;
+  }
+
+  if (options.commercialPolicy) {
+    systemContent += `\n\n${options.commercialPolicy}`;
+  }
 
   if (session) {
     if (session.nombre_cliente) {
       systemContent += `\n\nDATOS DEL CLIENTE: El cliente se llama "${session.nombre_cliente}". Dirigite a él/ella por su nombre de forma natural y cordial.`;
     }
-    if (session.estado_actual === 'waiting_name') {
+    if (session.estado_actual === "waiting_name") {
       systemContent += `\n\nCONTEXTO: Estabas esperando que el cliente te dé su nombre. Si el mensaje del cliente no parece un nombre, respondé de forma natural sin insistir.`;
     }
-    if (session.estado_actual === 'esperando_necesidad') {
+    if (session.estado_actual === "esperando_necesidad") {
       systemContent += `\n\nCONTEXTO: El cliente ya dijo su nombre pero todavía no especificó qué servicio necesita. Ayudalo a identificar qué necesita: podés preguntar si busca impresión 3D, cartelería LED, servicio técnico u otro servicio. No inventes servicios que no existen.`;
     }
     systemContent += `\n\nREGLA DE DATOS PERSONALES:
@@ -90,12 +137,12 @@ Si Nexus está esperando un dato solicitado previamente:
     systemContent += `\n\nContexto actual: ${chatContext}`;
   }
   if (context && context.trim()) {
-    systemContent += '\n\nINFORMACIÓN DISPONIBLE:\n' + context;
+    systemContent += "\n\nINFORMACIÓN DISPONIBLE:\n" + context;
   }
 
   const messages = [
-    { role: 'system', content: systemContent },
-    { role: 'user', content: userMessage },
+    { role: "system", content: systemContent },
+    { role: "user", content: userMessage },
   ];
 
   return messages;

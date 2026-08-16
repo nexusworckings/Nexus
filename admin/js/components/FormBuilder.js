@@ -115,7 +115,7 @@ export class FormBuilder {
             if (!session) throw new Error('No autenticado');
             const formData = new FormData();
             formData.append('file', file);
-            const res = await fetch('https://tecno-san-juan-production.cuatrinismaelabrahan.workers.dev/api/admin/upload', {
+            const res = await fetch('https://nexus.cuatrinismaelabrahan.workers.dev/api/admin/upload', {
               method: 'POST',
               headers: { 'Authorization': `Bearer ${session.access_token}` },
               body: formData,

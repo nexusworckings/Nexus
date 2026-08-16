@@ -84,50 +84,106 @@ Full architecture: [docs/architecture.md](docs/architecture.md)
 └── README.md
 ```
 
-## Local Installation
+## Development Environment
 
-### Prerequisites
+El repositorio es reproducible en **Windows y Linux** con **Node 22**. La versión
+exacta está fijada con **Volta** en `backend/worker/package.json` (clave
+`volta.node`) y en `.nvmrc`. CI (GitHub Actions) usa `node-version: 22`.
 
-- Node.js 22+
-- npm
+### 1. Requisitos
+
+- Node.js **22** (fijado con Volta; ver instalación abajo)
+- npm (se instala junto con Node)
+- Volta (recomendado) o nvm — para usar la versión exacta de Node 22
 - Wrangler CLI (`npm install -g wrangler`)
-- A Supabase project
-- An OpenRouter API key
-- A Meta WhatsApp Business account
+- Una cuenta de Supabase
+- Una API key de OpenRouter
+- Una cuenta de Meta WhatsApp Business
 
-### Setup
+### 2. Instalación de Node 22
+
+**Linux/macOS (Volta):**
 
 ```bash
-# 1. Clone the repository
-git clone https://github.com/your-org/tecno-san-juan.git
-cd tecno-san-juan
-
-# 2. Install dependencies
-cd backend/worker
-npm install
-
-# 3. Configure environment variables
-cp ../../.env.example .dev.vars
-# Edit .dev.vars with your real credentials:
-# - SUPABASE_URL
-# - SUPABASE_ANON_KEY
-# - SUPABASE_SERVICE_ROLE_KEY
-# - OPENROUTER_API_KEY
-# - WHATSAPP_TOKEN
-# - WHATSAPP_PHONE_NUMBER_ID
-# - WHATSAPP_APP_SECRET
-# - WEBHOOK_VERIFY_TOKEN
-# - JWT_SECRET
-
-# 4. Update wrangler.toml if needed
-# Set KV namespace IDs for SESSION_KV
-
-# 5. Start dev server
-npm run dev
-
-# 6. Run tests
-npm test
+curl https://get.volta.sh | bash
+# cerrar y reabrir la terminal
+volta install node@22
 ```
+
+**Windows (Volta):**
+
+1. Descargar e instalar el instalador desde https://volta.sh (o `winget install Volta.Volta`).
+2. Cerrar y reabrir la terminal (PowerShell o CMD).
+3. `volta install node@22`
+
+Con Volta, al pararse dentro de `backend/worker`, `node` y `npm` usan
+automáticamente la versión exacta fijada en `package.json` (`volta.node`).
+Usuarios que prefieran **nvm**: ejecutar `nvm use` en `backend/worker` (el
+`.nvmrc` contiene la misma versión).
+
+### 3. Instalación de dependencias
+
+```bash
+cd backend/worker
+npm ci
+```
+
+`npm ci` instala las dependencias exactamente según `package-lock.json`
+(no usar `npm install` como procedimiento de instalación en CI o para
+reproducir el entorno).
+
+### 4. Variables de entorno
+
+```bash
+cp ../../.env.example .dev.vars
+```
+
+Editar `.dev.vars` con las credenciales reales (ver `.env.example`):
+
+- `SUPABASE_URL`
+- `SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `OPENROUTER_API_KEY`
+- `OPENROUTER_MODEL`
+- `WHATSAPP_TOKEN`
+- `WHATSAPP_PHONE_NUMBER_ID`
+- `WHATSAPP_APP_SECRET`
+- `WEBHOOK_VERIFY_TOKEN`
+- `JWT_SECRET`
+
+Los secretos críticos nunca se commitean: `OPENROUTER_API_KEY`,
+`SUPABASE_SERVICE_ROLE_KEY`, `WHATSAPP_TOKEN`, `WHATSAPP_APP_SECRET`,
+`JWT_SECRET`.
+
+### 5. Iniciar Nexus (servidor de desarrollo)
+
+```bash
+npm run dev
+```
+
+### 6. Ejecutar tests
+
+```bash
+npm test              # todos los tests (vitest run)
+npm run test:watch    # modo watch
+npx vitest --coverage # cobertura
+```
+
+### 7. Lint
+
+El proyecto **no tiene linter configurado** (no hay ESLint). La única
+herramienta de estilo es Prettier (ver formato abajo). Si se agrega un linter,
+debe registrarse aquí.
+
+### 8. Verificar formato
+
+```bash
+npm run format:check   # verifica sin modificar (prettier --check .)
+npm run format         # escribe el formato (prettier --write .)
+```
+
+> Nota: `npm run format` reescribe archivos; usar `format:check` antes para
+> verificar el estado del repo.
 
 ### Deploy
 
@@ -169,7 +225,7 @@ npm run test:watch
 npx vitest --coverage
 ```
 
-**1369 tests** across 71 test files — all passing.
+**1800 tests** across 98 test files — all passing (Node 22, verificado en este repo).
 
 ## Modules
 

@@ -92,10 +92,19 @@ js/chatbot.js → js/api.js → POST /chat → handlers/chat.js
 ### B. Mensaje de WhatsApp
 
 ```text
-Meta → POST /webhook/whatsapp → services/whatsapp/webhook-handler.js
-  → handlers/chat.js (mismo ChatRuntime)
+Meta → POST /whatsapp/webhook → handlers/whatsapp-webhook.js
+  → WhatsAppService → services/whatsapp/webhook-handler.js
+  → ChatRuntime.handleMessage() (propio de WhatsApp, con su engine e interviewRouter)
+    → InterviewRouter / InterviewController
+    → o NexusAIEngine + tools
   → services/whatsapp/meta-whatsapp-channel.sendMessage()
 ```
+
+> **Nota (auditoría 2026-08-12):** el canal WhatsApp tiene **su propia instancia**
+> de `ChatRuntime`/`NexusAIEngine` construida en `handlers/whatsapp-webhook.js` —
+> NO pasa por `handlers/chat.js`. Además, el webhook no persiste el
+> `interviewSessionId` entre turnos (hallazgo crítico; ver
+> `INFORME-AUDITORIA-POST-P9.md` y `DECISIONES.md`).
 
 ### C. Finalización de entrevista → negocio
 
@@ -163,7 +172,7 @@ Adaptadores (web / WhatsApp / admin)
 
 ## Cómo orientarse rápido
 
-1. Un mensaje entra por `handlers/chat.js` (web/WhatsApp) o `admin.js` (panel).
+1. Un mensaje entra por `handlers/chat.js` (web) o `handlers/whatsapp-webhook.js` (WhatsApp, con su propia instancia de `ChatRuntime`/engine) o `admin.js` (panel).
 2. `ChatRuntime` decide entre entrevista e IA general.
 3. `NexusAIEngine` razona mediante tools; `InterviewController` ejecuta el flujo estructurado.
 4. Toda lógica sensible y acceso a Supabase/OpenRouter vive en el Worker.

@@ -1,4 +1,4 @@
-name = "tecno-san-juan"
+name = "nexus"
 main = "src/index.js"
 compatibility_date = "2025-07-26"
 compatibility_flags = ["nodejs_compat"]
@@ -8,18 +8,14 @@ binding = "SESSION_KV"
 id = "0614142e73594eb78ec0feb3f427c0f6"
 preview_id = "0614142e73594eb78ec0feb3f427c0f6"
 
-[env.production]
-kv_namespaces = [
-  { binding = "SESSION_KV", id = "0614142e73594eb78ec0feb3f427c0f6" }
-]
-[env.production.vars]
+[vars]
 ENVIRONMENT = "production"
-
-[env.development]
-vars = { ENVIRONMENT = "development" }
+ADMIN_ALLOWED_EMAILS = "admin@tecnosanjuan.com"
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+OPENROUTER_MODEL = "openai/gpt-4o-mini"
+SITE_URL = "https://tecnosanjuan.com"
+SUPABASE_URL = "https://iqbbdrgajlhkfbvsvzto.supabase.co"
+WHATSAPP_NUMBER = "+5492645123456"
 
 [triggers]
 crons = ["* * * * *"]
-
-[vars]
-ENVIRONMENT = "development"

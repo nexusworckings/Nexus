@@ -29,7 +29,7 @@ describe('Full Flow Integration', () => {
     });
 
     const router = {
-      shouldStartInterview: vi.fn().mockReturnValue(null),
+      classify: vi.fn().mockReturnValue({ type: 'none' }),
       hasActiveInterview: vi.fn().mockResolvedValue(false),
       answerMessage: vi.fn().mockResolvedValue({
         sessionId: null,

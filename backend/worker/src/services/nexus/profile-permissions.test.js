@@ -57,7 +57,7 @@ describe('Profile Permissions Integration', () => {
   it('customer profile has search-only tools', async () => {
     const engine = createEngine();
     const profile = engine.profileManager.get('customer');
-    const searchTools = ['searchClient', 'searchRepair', 'searchBudget', 'searchPrintOrder', 'getConversation', 'searchNotifications'];
+    const searchTools = ['searchClient', 'searchRepair', 'searchBudget', 'searchPrintOrder', 'getConversation', 'searchNotifications', 'searchPrice'];
     for (const tool of searchTools) {
       expect(profile.allowedTools).toContain(tool);
     }

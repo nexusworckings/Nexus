@@ -1,28 +1,54 @@
-import { adminGetAll, updateStatus, adminDelete } from '../../api.js';
+import { adminGetAll, adminGetOne, updateStatus } from '../../api.js';
 import { Modal } from '../../components/Modal.js';
 
-const STATUS_FLOW = ['received', 'diagnosing', 'repairing', 'completed'];
+const STATUS_FLOW = ['received', 'diagnosing', 'repairing', 'completed', 'cancelled'];
+const STATUS_LABELS = { received: 'Recibido', diagnosing: 'Diagnosticando', repairing: 'En reparación', completed: 'Completado', cancelled: 'Cancelado' };
 
 export default async function renderRepairs(container) {
   container.innerHTML = `
-    <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+    <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;align-items:end">
       <div class="search-box" style="flex:1;min-width:200px">
-        <input type="text" id="repairSearch" placeholder="Buscar reparación..." />
+        <label style="font-size:0.7rem;color:#64748b;text-transform:uppercase;font-weight:600">Buscar</label>
+        <input type="text" id="repairSearch" placeholder="Equipo, problema, cliente, teléfono..." style="width:100%;margin-top:4px" />
       </div>
-      <select id="repairStatusFilter" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.9rem">
-        <option value="">Todos los estados</option>
-        <option value="received">Recibido</option>
-        <option value="diagnosing">Diagnosticando</option>
-        <option value="repairing">En reparación</option>
-        <option value="completed">Completado</option>
-        <option value="cancelled">Cancelado</option>
-      </select>
+      <div>
+        <label style="font-size:0.7rem;color:#64748b;text-transform:uppercase;font-weight:600">Estado</label>
+        <select id="repairStatusFilter" style="display:block;margin-top:4px;padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.9rem">
+          <option value="">Todos los estados</option>
+          ${STATUS_FLOW.map(s => `<option value="${s}">${STATUS_LABELS[s]}</option>`).join('')}
+        </select>
+      </div>
+      <div>
+        <label style="font-size:0.7rem;color:#64748b;text-transform:uppercase;font-weight:600">Desde</label>
+        <input type="date" id="repairFrom" style="display:block;margin-top:4px;padding:8px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.9rem" />
+      </div>
+      <div>
+        <label style="font-size:0.7rem;color:#64748b;text-transform:uppercase;font-weight:600">Hasta</label>
+        <input type="date" id="repairTo" style="display:block;margin-top:4px;padding:8px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.9rem" />
+      </div>
+      <div>
+        <label style="font-size:0.7rem;color:#64748b;text-transform:uppercase;font-weight:600">Orden</label>
+        <select id="repairSort" style="display:block;margin-top:4px;padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.9rem">
+          <option value="created_at">Fecha</option>
+          <option value="device">Equipo</option>
+          <option value="status">Estado</option>
+          <option value="client_name">Cliente</option>
+        </select>
+      </div>
+      <div>
+        <label style="font-size:0.7rem;color:#64748b;text-transform:uppercase;font-weight:600">Dirección</label>
+        <button id="repairSortDir" style="display:block;margin-top:4px;padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.9rem;cursor:pointer;background:#fff">↓ Desc</button>
+      </div>
     </div>
     <div id="repairsTable"><p class="text-muted">Cargando reparaciones...</p></div>
     <style>
       .repair-table { width:100%; border-collapse:collapse; font-size:0.85rem; }
-      .repair-table th { text-align:left; padding:10px 12px; border-bottom:2px solid #e2e8f0; font-weight:600; color:#64748b; font-size:0.7rem; text-transform:uppercase; }
+      .repair-table th { text-align:left; padding:10px 12px; border-bottom:2px solid #e2e8f0; font-weight:600; color:#64748b; font-size:0.7rem; text-transform:uppercase; cursor:pointer; user-select:none; }
+      .repair-table th:hover { color:#1e293b; }
+      .repair-table th .sort-arrow { margin-left:4px; opacity:0.5; }
+      .repair-table th.sorted .sort-arrow { opacity:1; }
       .repair-table td { padding:10px 12px; border-bottom:1px solid #f1f5f9; }
+      .repair-table tr { cursor:pointer; }
       .repair-table tr:hover { background:#f8fafc; }
       .status-badge { display:inline-block; padding:2px 10px; border-radius:10px; font-size:0.7rem; font-weight:600; }
       .status-badge.received { background:#fef3c7; color:#92400e; }
@@ -32,58 +58,70 @@ export default async function renderRepairs(container) {
       .status-badge.cancelled { background:#fee2e2; color:#991b1b; }
       .status-select { padding:4px 8px; border:1px solid #e2e8f0; border-radius:6px; font-size:0.75rem; cursor:pointer; }
       .text-muted { color:#94a3b8; }
+      .detail-field { margin:6px 0; font-size:0.9rem; }
+      .detail-field strong { display:inline-block; min-width:120px; color:#64748b; }
+      .detail-section { margin:16px 0; }
+      .detail-section h4 { font-size:0.8rem; font-weight:600; color:#64748b; text-transform:uppercase; letter-spacing:0.5px; margin:0 0 8px; padding-bottom:4px; border-bottom:1px solid #e2e8f0; }
     </style>
   `;
 
-  let data = [];
+  let currentSort = 'created_at';
+  let currentOrder = 'desc';
+  const modal = new Modal();
+
+  function getParams() {
+    return {
+      search: document.getElementById('repairSearch').value || '',
+      status: document.getElementById('repairStatusFilter').value || '',
+      from: document.getElementById('repairFrom').value || '',
+      to: document.getElementById('repairTo').value || '',
+      sort: currentSort,
+      order: currentOrder,
+    };
+  }
 
   async function loadData() {
     try {
-      data = await adminGetAll('repairs');
-      renderTable();
+      const result = await adminGetAll('repairs', getParams());
+      const data = Array.isArray(result) ? result : (result.items || []);
+      renderTable(data);
     } catch (err) {
       document.getElementById('repairsTable').innerHTML = `<div class="empty-state">Error: ${err.message}</div>`;
     }
   }
 
-  function renderTable() {
-    const search = (document.getElementById('repairSearch').value || '').toLowerCase();
-    const statusFilter = document.getElementById('repairStatusFilter').value;
-
-    let filtered = data.filter(item => {
-      if (statusFilter && item.status !== statusFilter) return false;
-      if (search && !((item.device || '') + (item.problem || '') + (item.id || '')).toLowerCase().includes(search)) return false;
-      return true;
-    });
-
+  function renderTable(data) {
     const table = document.getElementById('repairsTable');
 
-    if (filtered.length === 0) {
+    if (data.length === 0) {
       table.innerHTML = '<div class="empty-state">No hay reparaciones registradas</div>';
       return;
     }
 
+    const sortArrow = (field) => field === currentSort ? (currentOrder === 'asc' ? ' ↑' : ' ↓') : ' ↕';
+    const sortedClass = (field) => field === currentSort ? ' class="sorted"' : '';
+
     table.innerHTML = `
       <div class="table-container"><table class="repair-table">
         <thead><tr>
-          <th>Dispositivo</th>
+          <th${sortedClass('device')} data-sort="device">Equipo<span class="sort-arrow">${sortArrow('device')}</span></th>
           <th>Problema</th>
-          <th>Urgencia</th>
-          <th>Estado</th>
-          <th>Fecha</th>
+          <th${sortedClass('status')} data-sort="status">Estado<span class="sort-arrow">${sortArrow('status')}</span></th>
+          <th${sortedClass('created_at')} data-sort="created_at">Fecha<span class="sort-arrow">${sortArrow('created_at')}</span></th>
+          <th${sortedClass('client_name')} data-sort="client_name">Cliente<span class="sort-arrow">${sortArrow('client_name')}</span></th>
           <th>Acciones</th>
         </tr></thead>
-        <tbody>${filtered.map(item => `
-          <tr>
+        <tbody>${data.map(item => `
+          <tr data-id="${item.id}">
             <td><strong>${esc(item.device)}</strong></td>
             <td>${esc(item.problem || '').substring(0, 60)}</td>
-            <td>${esc(item.urgency || 'normal')}</td>
-            <td><span class="status-badge ${item.status}">${item.status}</span></td>
+            <td><span class="status-badge ${item.status}">${STATUS_LABELS[item.status] || item.status}</span></td>
             <td>${item.created_at ? new Date(item.created_at).toLocaleDateString('es-AR') : '-'}</td>
-            <td>
+            <td>${esc(item.client_name || item.clientId || '-')}</td>
+            <td onclick="event.stopPropagation()">
               <select class="status-select" data-id="${item.id}" data-current="${item.status}">
-                ${['received', 'diagnosing', 'repairing', 'completed', 'cancelled'].map(s =>
-                  `<option value="${s}" ${s === item.status ? 'selected' : ''}>${s}</option>`
+                ${STATUS_FLOW.map(s =>
+                  `<option value="${s}" ${s === item.status ? 'selected' : ''}>${STATUS_LABELS[s]}</option>`
                 ).join('')}
               </select>
             </td>
@@ -92,6 +130,23 @@ export default async function renderRepairs(container) {
       </table></div>
     `;
 
+    table.querySelectorAll('th[data-sort]').forEach(th => {
+      th.addEventListener('click', () => {
+        const field = th.dataset.sort;
+        if (currentSort === field) {
+          currentOrder = currentOrder === 'asc' ? 'desc' : 'asc';
+        } else {
+          currentSort = field;
+          currentOrder = 'asc';
+        }
+        loadData();
+      });
+    });
+
+    table.querySelectorAll('tbody tr').forEach(row => {
+      row.addEventListener('click', () => showDetail(row.dataset.id));
+    });
+
     table.querySelectorAll('.status-select').forEach(sel => {
       sel.addEventListener('change', async () => {
         const id = sel.dataset.id;
@@ -99,6 +154,7 @@ export default async function renderRepairs(container) {
         try {
           await updateStatus('repairs', id, newStatus);
           sel.dataset.current = newStatus;
+          loadData();
         } catch (err) {
           alert('Error al actualizar estado: ' + err.message);
           sel.value = sel.dataset.current;
@@ -107,8 +163,49 @@ export default async function renderRepairs(container) {
     });
   }
 
-  document.getElementById('repairSearch').addEventListener('input', renderTable);
-  document.getElementById('repairStatusFilter').addEventListener('change', renderTable);
+  async function showDetail(id) {
+    modal.show({ title: 'Cargando...', body: '<p>Cargando datos...</p>', footer: '<button class="btn btn-outline" id="closeDetail">Cerrar</button>' });
+
+    try {
+      const item = await adminGetOne('repairs', id);
+      modal.show({
+        title: `Reparación — ${esc(item.device || item.id)}`,
+        body: `
+          <div class="detail-field"><strong>ID:</strong> ${esc(item.id)}</div>
+          <div class="detail-field"><strong>Equipo:</strong> ${esc(item.device)}</div>
+          <div class="detail-field"><strong>Problema:</strong> ${esc(item.problem || '-')}</div>
+          <div class="detail-field"><strong>Urgencia:</strong> ${esc(item.urgency || 'normal')}</div>
+          <div class="detail-field"><strong>Estado:</strong> <span class="status-badge ${item.status}">${STATUS_LABELS[item.status] || item.status}</span></div>
+          <div class="detail-field"><strong>Cliente:</strong> ${esc(item.client_name || item.clientId || '-')}</div>
+          <div class="detail-field"><strong>Fecha:</strong> ${item.created_at ? new Date(item.created_at).toLocaleString('es-AR') : '-'}</div>
+          ${item.notes ? `<div class="detail-field"><strong>Notas:</strong> ${esc(item.notes)}</div>` : ''}
+        `,
+        footer: '<button class="btn btn-outline" id="closeDetail">Cerrar</button>',
+      });
+    } catch (err) {
+      modal.show({ title: 'Error', body: `<p>Error al cargar: ${err.message}</p>`, footer: '<button class="btn btn-outline" id="closeDetail">Cerrar</button>' });
+    }
+
+    setTimeout(() => {
+      const btn = document.getElementById('closeDetail');
+      if (btn) btn.addEventListener('click', () => modal.hide());
+    }, 50);
+  }
+
+  let debounceTimer;
+  const debounce = (fn, ms = 300) => (...args) => { clearTimeout(debounceTimer); debounceTimer = setTimeout(() => fn(...args), ms); };
+
+  const debouncedLoad = debounce(loadData);
+  document.getElementById('repairSearch').addEventListener('input', debouncedLoad);
+  document.getElementById('repairStatusFilter').addEventListener('change', loadData);
+  document.getElementById('repairFrom').addEventListener('change', loadData);
+  document.getElementById('repairTo').addEventListener('change', loadData);
+  document.getElementById('repairSort').addEventListener('change', (e) => { currentSort = e.target.value; loadData(); });
+  document.getElementById('repairSortDir').addEventListener('click', () => {
+    currentOrder = currentOrder === 'asc' ? 'desc' : 'asc';
+    document.getElementById('repairSortDir').textContent = currentOrder === 'asc' ? '↑ Asc' : '↓ Desc';
+    loadData();
+  });
 
   await loadData();
 }

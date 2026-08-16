@@ -79,6 +79,7 @@ describe('ProfileManager', () => {
     const p = pm.get('customer');
     expect(p.allowedTools).not.toContain('updateRepairStatus');
     expect(p.allowedTools).toContain('searchClient');
+    expect(p.allowedTools).toContain('searchPrice');
   });
 
   it('admin has full tools', () => {

@@ -228,3 +228,34 @@ los datos: la validación determinística del schema es la compuerta de confianz
 El frontend usa el teléfono del negocio obtenido de `/api/public/business-info`
 como destino del botón WhatsApp. El backend no envía `data.phone` en la respuesta
 de completado para evitar duplicación de datos.
+
+## Vínculo conversación ↔ entrevista en WhatsApp (ALTERNATIVA A IMPLEMENTADA, P10)
+
+**Hallazgo crítico (2026-08-12, ver `INFORME-AUDITORIA-POST-P9.md`):** en
+WhatsApp la entrevista multi-turn no continúa. `webhook-handler.js` llamaba a
+`ChatRuntime.handleMessage` con `sessionId = conversation.conversationId` y sin
+`interviewSessionId`; la entrevista se crea con un UUID propio de `StateKeeper`,
+así que el turno siguiente `hasActiveInterview(conversationId)` era `false` y la
+respuesta del usuario caía al engine general. Web Chat sí funciona porque conserva
+`body.interview.sessionId`.
+
+**Estado:** Alternativa A **implementada en P10** (2026-08-12). `webhook-handler.js`
+ahora guarda `interviewSessionId` en `ConversationMemory` por `conversationId`
+(`remember` al iniciar/avanzar, `recall` para el siguiente turno, `forget` al
+completar o cuando el runtime responde `chat`). La memoria queda permitida para
+este uso; se mantiene la regla de NO modificar `InterviewController`, `StateKeeper`
+ni `ConversationMemory` internamente (el cambio usa solo la API pública).
+
+Alternativas evaluadas:
+- **A (implementada, P10):** guardar `interviewSessionId` en
+  `ConversationMemory` por `conversationId`. Cambio único en `webhook-handler.js`;
+  NO toca `InterviewController`/`StateKeeper`; reproduce el patrón web.
+  **Limitación:** la memoria vive en el proceso del Worker (se pierde al reiniciar/
+  aislar); es un vínculo de corto plazo, la fuente de verdad de la entrevista sigue
+  siendo Supabase.
+- **B (descartada):** vínculo en la entidad de conversación — mismo límite de
+  memoria que A con más superficie de cambio.
+- **C (mediano plazo, pendiente):** enlace por `conversationId` persistido en
+  Supabase (fuente de verdad de entrevistas según REGLAS.md); sobrevive reinicios y
+  aislados de Cloudflare; uniforme para todos los canales. Requiere cambio de
+  contrato en `InterviewController`/`StateKeeper`.

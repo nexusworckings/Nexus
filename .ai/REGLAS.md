@@ -46,6 +46,13 @@ Cosas que no se pueden romper sin pensarlo dos veces y documentar el cambio.
   `webhook-validator.js` antes de procesar cualquier mensaje.
 - El rate limiting y spam detection del `chat.js` no deben desactivarse en
   producción (protegen contra abuso de la API de OpenRouter).
+- **Hallazgo crítico abierto (2026-08-12, auditoría POST-P9):** el webhook no
+  persiste el `interviewSessionId` entre turnos, por lo que la entrevista
+  multi-turn NO continúa en WhatsApp (a diferencia del chat web, que conserva
+  `body.interview.sessionId`). El fix está **en diseño, no implementado**.
+  NO modificar `webhook-handler.js`, `chat-runtime.js`, `InterviewController`,
+  `StateKeeper` ni `ConversationMemory` hasta resolver la arquitectura (ver
+  `INFORME-AUDITORIA-POST-P9.md` y `DECISIONES.md`).
 
 ### Tests
 - Cada nuevo módulo o servicio de backend debe tener tests en Vitest.

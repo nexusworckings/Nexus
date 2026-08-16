@@ -67,7 +67,7 @@ async function login(email, password) {
   };
 }
 
-async function refreshToken(refreshToken) {
+export async function doRefreshToken(refreshToken) {
   const result = await supabaseRequest('/auth/v1/token?grant_type=refresh_token', {
     refresh_token: refreshToken,
   });

@@ -14,6 +14,8 @@ import {
   handleAdminReplayAllDlq,
 } from './handlers/admin.js';
 import { handleUpdatePassword } from './handlers/admin.js';
+import { handleAdminList } from './handlers/admin-list.js';
+import { handleAdminUpdateStatus } from './handlers/admin-status.js';
 import { handleAdminAiAction, handleAdminConversations, handleAdminAiSuggestions } from './handlers/admin-ai.js';
 import { handleWebhookGet, handleWebhookPost } from './handlers/whatsapp-webhook.js';
 import { handleChat, handleHealth } from './handlers/chat.js';
@@ -190,6 +192,10 @@ export async function handleRequest(request, env) {
         return addCors(response, corsHeaders);
       }
 
+      if (request.method === 'GET' && !id && ['repairs', 'budgets', 'print-orders', 'clients'].includes(resource)) {
+        const response = await handleAdminList(request, env, resource);
+        return addCors(response, corsHeaders);
+      }
       if (request.method === 'GET' && !id) {
         const response = await handleAdminGetAll(request, env, resource);
         return addCors(response, corsHeaders);
@@ -212,6 +218,11 @@ export async function handleRequest(request, env) {
       }
       if (request.method === 'POST' && !id) {
         const response = await handleAdminCreate(request, env, resource);
+        return addCors(response, corsHeaders);
+      }
+      if (request.method === 'PATCH' && id && parts[2] === 'status'
+        && ['repairs', 'budgets', 'print-orders'].includes(resource)) {
+        const response = await handleAdminUpdateStatus(request, env, resource, id);
         return addCors(response, corsHeaders);
       }
       if (request.method === 'PUT' && id) {

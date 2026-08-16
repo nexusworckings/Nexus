@@ -14,6 +14,7 @@ export class MemorySessionStore extends SessionStore {
       sessionId,
       state: data.state,
       schema: deepClone(data.schema),
+      status: 'active',
     });
   }
 
@@ -24,6 +25,7 @@ export class MemorySessionStore extends SessionStore {
       sessionId,
       state: entry.state,
       schema: deepFreeze(deepClone(entry.schema)),
+      status: entry.status || 'active',
     };
   }
 
@@ -41,6 +43,13 @@ export class MemorySessionStore extends SessionStore {
 
   delete(sessionId) {
     return this.#sessions.delete(sessionId);
+  }
+
+  markCompleted(sessionId) {
+    const entry = this.#sessions.get(sessionId);
+    if (!entry) return false;
+    entry.status = 'completed';
+    return true;
   }
 
   exists(sessionId) {
