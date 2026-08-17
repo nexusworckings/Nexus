@@ -1,6 +1,6 @@
 import { getSession, clearSession } from './auth.js';
 
-const API_BASE = 'https://nexus.cuatrinismaelabrahan.workers.dev';
+const API_BASE = 'https://nexus-production.cuatrinismaelabrahan.workers.dev';
 
 function getToken() {
   const session = getSession();

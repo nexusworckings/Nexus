@@ -3,6 +3,8 @@ const ALLOWED_ORIGINS = [
   'https://www.tecnosanjuan.com',
   'https://ismabrahan.github.io',
   'https://ismabrahn.github.io',
+  'https://nexusworckings.github.io',
+  'https://nexus.cuatrinismaelabrahan.workers.dev',
   'http://localhost:8787',
   'http://localhost:5500',
   'http://127.0.0.1:5500',

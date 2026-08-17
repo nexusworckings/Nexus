@@ -1,4 +1,4 @@
-const API_BASE = 'https://nexus.cuatrinismaelabrahan.workers.dev';
+const API_BASE = 'https://nexus-production.cuatrinismaelabrahan.workers.dev';
 
 export async function fetchPublic(resource) {
   const res = await fetch(`${API_BASE}/api/public/${resource}`);

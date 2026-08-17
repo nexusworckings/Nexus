@@ -13,6 +13,22 @@ Motivo:
 - Permite controlar y filtrar las llamadas externas (a Supabase y a OpenRouter).
 - Edge deployment: latencia baja, escalado automático.
 
+## Despliegue del Worker: `nexus-production` es el backend real (2026-08-17)
+
+`backend/worker/wrangler.toml` define `name = "nexus"` SIN sección `[env.production]`.
+El CI (`.github/workflows/deploy-worker.yml`) ejecuta `npx wrangler deploy --env production`,
+que despliega al Worker **`nexus-production`** (nombre + sufijo del entorno). Por lo tanto:
+
+- El **backend real** del sistema es `https://nexus-production.cuatrinismaelabrahan.workers.dev`.
+- El frontend (público y admin) apunta SIEMPRE al Worker con sufijo `-production`.
+- El Worker `nexus` (sin sufijo) es un proyecto de Static Assets (solo sirve el HTML)
+  y **no** contiene el router de la API; no debe usarse como API base.
+
+Motivo (lección del incidente 2026-08-17): en el commit `d070053` el frontend quedó
+apuntando a `nexus` (sin `-production`) mientras el CI desplegaba a `nexus-production`;
+el HTML cargaba pero `/api/*` devolvía 404 vacío. Cambiar el `name` en `wrangler.toml`
+sin actualizar el API base del frontend rompe la conexión.
+
 ## Supabase como base de datos
 
 Motivo:

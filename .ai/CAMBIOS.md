@@ -3,7 +3,40 @@
 Memoria de evolución. Solo entran acá cambios de **arquitectura, módulos, reglas o
 decisiones importantes** — no es un changelog de commits, para eso está git.
 
-Repositorio: https://github.com/Ismabrahn/TecnoSanJuan
+Repositorio: https://github.com/nexusworckings/Nexus
+
+---
+
+## 2026-08-17 — Fix de despliegue: reconexión frontend público/admin con el backend Worker
+
+- **Causa raíz (diagnóstico verificado contra el despliegue real, no hipótesis):** el
+  commit `d070053` renombró el Worker en `backend/worker/wrangler.toml` de
+  `tecno-san-juan` a `nexus` y eliminó las secciones `[env.production]`/`[env.development]`.
+  El CI (`.github/workflows/deploy-worker.yml`) sigue ejecutando
+  `npx wrangler deploy --env production`; sin `[env.production]`, Wrangler despliega
+  al Worker **`nexus-production`** (log del run 31979557265: "Uploaded nexus-production").
+  El frontend (público y admin) quedó apuntando a `https://nexus.cuatrinismaelabrahan.workers.dev`
+  (SIN el sufijo `-production`), que es un Worker de Static Assets que solo sirve el
+  HTML y devuelve `404` vacío en `/api/*`. Por eso el HTML cargaba pero toda llamada
+  a la API fallaba: el código real del router vive en `nexus-production`, no en `nexus`.
+- **Segunda causa (independiente):** incluso `nexus-production` (que sí ejecuta el
+  router correcto) responde `503/500` porque el secret de Supabase es inválido/ausente
+  (`/health` → `{"error":"Invalid API key"}`; `/chat` → `"supabaseKey is required."`).
+  `wrangler.toml` define `SUPABASE_URL` en `[vars]`, pero `SUPABASE_SERVICE_ROLE_KEY`
+  y `SUPABASE_ANON_KEY` deben configurarse como secrets del Worker de producción.
+- **Cambios de código (mínimos):**
+  - `index.html`, `js/api.js`, `admin/js/api.js`, `admin/js/ai-assistant.js`,
+    `admin/js/components/FormBuilder.js`: API base → `https://nexus-production.cuatrinismaelabrahan.workers.dev`.
+  - `backend/worker/src/middleware/cors.js`: se agregaron `https://nexusworckings.github.io`
+    y `https://nexus.cuatrinismaelabrahan.workers.dev` a `ALLOWED_ORIGINS` (origenes
+    reales verificados que sirven el frontend desplegado y quedan cross-origin contra
+    `nexus-production`). No se agregó ningún dominio por precaución.
+- **Pendiente (no resuelto por falta de credenciales locales):** setear los secrets
+  de Supabase en el Worker `nexus-production` (`wrangler secret put
+  SUPABASE_SERVICE_ROLE_KEY` / `SUPABASE_ANON_KEY`) y redirigir `tecnosanjuan.com`
+  (hoy no resuelve DNS) si se quiere usar el dominio propio.
+- **Verificación:** suite completa **1885/1885 en 103 archivos**. Endpoints probados
+  contra el despliegue real (ver INFORME en la respuesta de este cambio).
 
 ---
 
