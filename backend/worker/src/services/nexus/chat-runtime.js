@@ -253,7 +253,7 @@ export class ChatRuntime {
         if (completedInterview) {
           return {
             type: "completed",
-            sessionId,
+            sessionId: lastResult?.data?.sessionId || sessionId,
             schemaId: lastResult?.data?.schemaId || null,
             message: "Solicitud procesada correctamente.",
             data: lastResult?.data,

@@ -138,24 +138,61 @@ export async function handleHealth(env) {
   }
 }
 
-export async function handleChat(request, env) {
+async function validateChatRequest(request) {
   if (request.method !== "POST") {
-    return errorResponse(request, 405, "Método no permitido");
+    return {
+      ok: false,
+      response: errorResponse(request, 405, "Método no permitido"),
+    };
   }
 
   const clientIp = request.headers.get("CF-Connecting-IP") || "anonymous";
   if (!checkRateLimit(clientIp)) {
-    return errorResponse(
-      request,
-      429,
-      "Demasiadas solicitudes. Intentá de nuevo en un minuto.",
-    );
+    return {
+      ok: false,
+      response: errorResponse(
+        request,
+        429,
+        "Demasiadas solicitudes. Intentá de nuevo en un minuto.",
+      ),
+    };
   }
 
+  const body = await request.json();
+
+  return {
+    ok: true,
+    payload: {
+      body,
+      userMessage: (body.message || "").trim(),
+      chatContext: (body.context || "").trim(),
+      clientIp,
+    },
+  };
+}
+
+async function handleCompletedInterview(completionPipeline, sessionId) {
   try {
-    const body = await request.json();
-    const userMessage = (body.message || "").trim();
-    const chatContext = (body.context || "").trim();
+    const pipelineResult = await completionPipeline.execute({ sessionId });
+    if (
+      !pipelineResult.success &&
+      pipelineResult.error !== "SESSION_NOT_FOUND"
+    ) {
+      return "No pudimos registrar tu solicitud. Intentá nuevamente.";
+    }
+    return null;
+  } catch (err) {
+    log.error("[CHAT]", `CompletionPipeline error: ${err.message}`);
+    return "No pudimos registrar tu solicitud. Intentá nuevamente.";
+  }
+}
+
+export async function handleChat(request, env) {
+  try {
+    const validation = await validateChatRequest(request);
+    if (!validation.ok) return validation.response;
+
+    const { body, userMessage, chatContext, clientIp } = validation.payload;
 
     if (body.action === "reset") {
       const session = body.session || {};
@@ -217,40 +254,15 @@ export async function handleChat(request, env) {
         interviewSessionId,
       });
 
-      const responseData = {
-        response: result.message || result.question || result.explanation || "",
-        session,
-        context: chatContext,
-        source: "ai",
-      };
-
-      if (result.type === "interview" || result.type === "completed") {
-        responseData.interview = {
-          sessionId: result.sessionId,
-          active: result.type === "interview",
-          complete: result.type === "completed",
-          schemaId: result.schemaId || null,
-          currentField:
-            result.type === "completed" ? null : result.fieldId || null,
-        };
-      }
+      const responseData = buildChatResponse(result, session, chatContext);
 
       if (result.type === "completed" && result.sessionId) {
-        try {
-          const pipelineResult = await completionPipeline.execute({
-            sessionId: result.sessionId,
-          });
-          if (
-            !pipelineResult.success &&
-            pipelineResult.error !== "SESSION_NOT_FOUND"
-          ) {
-            responseData.response =
-              "No pudimos registrar tu solicitud. Intentá nuevamente.";
-          }
-        } catch (err) {
-          log.error("[CHAT]", `CompletionPipeline error: ${err.message}`);
-          responseData.response =
-            "No pudimos registrar tu solicitud. Intentá nuevamente.";
+        const fallbackMessage = await handleCompletedInterview(
+          completionPipeline,
+          result.sessionId,
+        );
+        if (fallbackMessage) {
+          responseData.response = fallbackMessage;
         }
       }
 
@@ -274,6 +286,28 @@ export async function handleChat(request, env) {
     log.error("[CHAT]", `Error: ${err.message}`);
     return errorResponse(request, 500, err.message);
   }
+}
+
+export function buildChatResponse(result, session, chatContext) {
+  const responseData = {
+    response: result.message || result.question || result.explanation || "",
+    session,
+    context: chatContext,
+    source: "ai",
+  };
+
+  if (result.type === "interview" || result.type === "completed") {
+    responseData.interview = {
+      sessionId: result.sessionId,
+      active: result.type === "interview",
+      complete: result.type === "completed",
+      schemaId: result.schemaId || null,
+      currentField:
+        result.type === "completed" ? null : result.fieldId || null,
+    };
+  }
+
+  return responseData;
 }
 
 async function createChatRuntime(env, chatContext) {
