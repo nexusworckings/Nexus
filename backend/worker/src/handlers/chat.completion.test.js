@@ -9,6 +9,7 @@ const { mockChat, sessionStoreMock, defaultLogger } = vi.hoisted(() => ({
     throwFor: new Set(),
     throwAfterFirst: new Set(),
     returnOnce: new Set(),
+    failMarkCompleted: false,
     async get(sessionId) {
       sessionStoreMock.getCalls.push(sessionId);
       const count = (sessionStoreMock.getCounts[sessionId] =
@@ -37,6 +38,9 @@ const { mockChat, sessionStoreMock, defaultLogger } = vi.hoisted(() => ({
       return true;
     },
     async markCompleted() {
+      if (sessionStoreMock.failMarkCompleted) {
+        throw new Error("mark boom");
+      }
       return true;
     },
   },
@@ -97,6 +101,7 @@ vi.mock("../services/logger.js", () => ({
 import { handleChat } from "./chat.js";
 import { query, rpc } from "../services/supabase.js";
 import { webSearch, formatSearchResults } from "../services/websearch.js";
+import { StateKeeper } from "../services/interview/v2/state-keeper.js";
 
 const BASE = "https://test.tecnosanjuan.com";
 
@@ -143,14 +148,12 @@ const STATUS_PLAN = JSON.stringify({
 });
 
 function storeInterviewSession(overrides = {}) {
+  const state = StateKeeper.create("budget-request", "1.0.0");
+  state.setUserValue("description", "cambio de pantalla");
   sessionStoreMock.sessions.set("int-x", {
     sessionId: "int-x",
     schema: { serviceId: "budget-request", fields: [] },
-    state: {
-      toJSON: () => ({
-        completedFields: { description: { value: "cambio de pantalla" } },
-      }),
-    },
+    state,
     ...overrides,
   });
 }
@@ -181,6 +184,7 @@ describe("handleChat interview completion", () => {
     sessionStoreMock.throwFor.clear();
     sessionStoreMock.throwAfterFirst.clear();
     sessionStoreMock.returnOnce.clear();
+    sessionStoreMock.failMarkCompleted = false;
     env = makeEnv(new Map());
     query.mockResolvedValue(undefined);
     rpc.mockResolvedValue(null);
@@ -229,7 +233,8 @@ describe("handleChat interview completion", () => {
   });
 
   it("replaces the response when the pipeline fails with another error", async () => {
-    storeInterviewSession({ schema: undefined });
+    storeInterviewSession();
+    sessionStoreMock.failMarkCompleted = true;
     mockCompletedFlow();
 
     const res = await handleChat(

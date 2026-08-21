@@ -1,3 +1,6 @@
+import { FlowEvaluator } from '../../interview/v2/flow-evaluator.js';
+import { StateKeeper } from '../../interview/v2/state-keeper.js';
+
 export function registerInterviewTools(registry, deps = {}) {
   const tools = [
     createQuestionGeneratorTool(deps),
@@ -115,11 +118,12 @@ function createInterviewControllerTool(deps) {
 
         if (action === 'status') {
           const session = await controller.getSession(data.sessionId);
-          const completedCount = Object.keys(session.state.completedFields || {}).length;
+          const state = StateKeeper.fromJSON(session.state);
+          const flowResult = FlowEvaluator.evaluate(session.schema, state);
           return {
             sessionId: session.sessionId,
-            complete: completedCount > 0,
-            fieldCount: completedCount,
+            complete: flowResult.isComplete,
+            fieldCount: Object.keys(session.state.completedFields || {}).length,
           };
         }
 

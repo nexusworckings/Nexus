@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import { ToolRegistry } from '../tool-registry.js';
 import { registerInterviewTools } from './interview-tools.js';
+import { InterviewController } from '../../interview/v2/interview-controller.js';
+import budgetRequestSchema from '../../interview/v2/schemas/budget-request.json' with { type: 'json' };
 
 describe('registerInterviewTools', () => {
   it('registers interview tools', () => {
@@ -56,6 +58,28 @@ describe('registerInterviewTools', () => {
     const tool = registry.get('interviewController');
     const result = await tool.execute({ action: 'status', data: {} });
     expect(result.complete).toBe(false);
+  });
+
+  it('interviewController status reports complete only when all required fields are answered', async () => {
+    const registry = new ToolRegistry();
+    registerInterviewTools(registry, { interviewController: new InterviewController() });
+    const tool = registry.get('interviewController');
+
+    const started = await tool.execute({ action: 'start', data: { schema: budgetRequestSchema } });
+    const sessionId = started.sessionId;
+
+    await tool.execute({
+      action: 'answer',
+      data: { sessionId, fieldId: 'description', value: 'Cambio de pantalla' },
+    });
+    const partial = await tool.execute({ action: 'status', data: { sessionId } });
+    expect(partial.complete).toBe(false);
+
+    await tool.execute({ action: 'answer', data: { sessionId, fieldId: 'clientName', value: 'Juan' } });
+    await tool.execute({ action: 'answer', data: { sessionId, fieldId: 'clientPhone', value: '2645123456' } });
+    await tool.execute({ action: 'answer', data: { sessionId, fieldId: 'serviceType', value: 'reparacion' } });
+    const done = await tool.execute({ action: 'status', data: { sessionId } });
+    expect(done.complete).toBe(true);
   });
 
   it('interviewController summary works', async () => {
