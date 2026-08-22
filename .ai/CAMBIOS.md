@@ -7,6 +7,41 @@ Repositorio: https://github.com/nexusworckings/Nexus
 
 ---
 
+## 2026-08-19 — Configuración de secrets de Supabase en el Worker `nexus-production`
+
+- **Objetivo:** resolver los errores de producción `"Invalid API key"` (`/health`) y
+  `"supabaseKey is required."` (`/chat`) causados por la ausencia de
+  `SUPABASE_SERVICE_ROLE_KEY` y `SUPABASE_ANON_KEY` en el Worker (ver CAMBIOS 2026-08-17,
+  "Pendiente").
+- **Verificación de identidad:** se confirmó vía API de Cloudflare que el token local
+  pertenece a la cuenta **NexusWorckings** (account id `57de15affd59c937759222091bcd23bf`),
+  donde existen `nexus`, `nexus-production`, `tecno-san-juan` y `tecno-san-juan-production`.
+  `nexus-production` es el Worker real (2 deployments; último 2026-08-17T04:28Z).
+- **Cambio (solo secrets, sin código ni configuración de repo):**
+  `wrangler secret put` en `nexus-production` para `SUPABASE_ANON_KEY` y
+  `SUPABASE_SERVICE_ROLE_KEY` (valores leídos del archivo local de credenciales,
+  nunca impresos ni escritos en el repo). Wrangler v4 creó un deployment nuevo por
+  secret (03:18 y 03:19 UTC) → no fue necesario deploy manual adicional.
+- **Verificación de secrets:** ambos nombres presentes en la configuración del Worker
+  (`type: secret_text`). Sin exponer valores.
+- **Resultado en producción:** el error cambió de "Invalid API key" /
+  "supabaseKey is required." a **`504 PGRST003 "Timed out acquiring connection from
+  connection pool."`** en `/health` y timeouts en `/api/public/business-info` y `/chat`.
+  Diagnóstico: las keys **ya autentican correctamente** contra el proyecto
+  `iqbbdrgajlhkfbvsvzto` (el root de `/rest/v1/` responde `401 "Only the service_role
+  API key can be used"` en lugar de "Invalid API key"), pero **PostgREST no obtiene
+  conexión de la DB** — auth (GoTrue) y storage responden OK, el pooler responde al
+  handshake SCRAM (compute vivo), pero toda query a tablas (anon y service_role)
+  se cuelga en el pool → problema del lado de Supabase (pool saturado o proyecto en
+  estado limitado), pendiente de resolver en el dashboard de Supabase.
+- **Pendientes:** (1) resolver el timeout del pool de Supabase (dashboard, fuera del
+  repo); (2) verificar de nuevo `/health`, `/api/public/business-info` y `/chat` cuando
+  el pool responda; (3) rotar el `CLOUDFLARE_API_TOKEN` del repo hacia la cuenta
+  `NexusWorckings` si corresponde (el secret actual despliega a la cuenta personal
+  `cuatrinismaelabrahan`).
+
+---
+
 ## 2026-08-17 — Fix de despliegue: reconexión frontend público/admin con el backend Worker
 
 - **Causa raíz (diagnóstico verificado contra el despliegue real, no hipótesis):** el
