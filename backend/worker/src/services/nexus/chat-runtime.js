@@ -17,6 +17,17 @@ export class ChatRuntime {
     return this.#engine;
   }
 
+  #validateMessage(message) {
+    if (!message || typeof message !== "string") {
+      return { ok: false, response: { type: "error", error: "message is required" } };
+    }
+    const trimmed = message.trim();
+    if (trimmed.length === 0) {
+      return { ok: false, response: { type: "error", error: "message is required" } };
+    }
+    return { ok: true, message: trimmed };
+  }
+
   async hasActiveInterview(sessionId) {
     return this.#interviewRouter.hasActiveInterview(sessionId);
   }
@@ -28,15 +39,10 @@ export class ChatRuntime {
     clientId,
     conversationId,
   } = {}) {
-    if (!message || typeof message !== "string") {
-      return { type: "error", error: "message is required" };
-    }
+    const validation = this.#validateMessage(message);
+    if (!validation.ok) return validation.response;
 
-    const trimmedMessage = message.trim();
-    if (trimmedMessage.length === 0) {
-      return { type: "error", error: "message is required" };
-    }
-
+    const trimmedMessage = validation.message;
     const classification = this.#interviewRouter.classify(trimmedMessage);
     const activeInterviewId = interviewSessionId || sessionId;
     const hasActiveInterview = activeInterviewId
@@ -235,6 +241,16 @@ export class ChatRuntime {
     }
 
     if (result.type === "execution") {
+      return this.#formatExecutionResult(result, sessionId);
+    }
+
+    return {
+      type: "chat",
+      message: result.message || result.explanation || "Respuesta generada.",
+    };
+  }
+
+#formatExecutionResult(result, sessionId) {
       const executedTools = result.results
         .filter((r) => r.success)
         .map((r) => r.toolName);
@@ -299,10 +315,4 @@ export class ChatRuntime {
 
       return { type: "chat", message: result.explanation };
     }
-
-    return {
-      type: "chat",
-      message: result.message || result.explanation || "Respuesta generada.",
-    };
   }
-}
