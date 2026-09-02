@@ -24,7 +24,7 @@ describe("registerTools", () => {
   it("registers all tools", () => {
     const registry = new ToolRegistry();
     registerTools(registry, makeDeps());
-    expect(registry.count()).toBe(19);
+    expect(registry.count()).toBe(18);
   });
 
   it("searchClient tool exists", () => {
@@ -60,34 +60,6 @@ describe("registerTools", () => {
       status: "completed",
     });
     expect(result.status).toBe("completed");
-  });
-
-  it("sendWhatsApp tool exists", () => {
-    const registry = new ToolRegistry();
-    registerTools(registry, makeDeps());
-    expect(registry.exists("sendWhatsApp")).toBe(true);
-  });
-
-  it("sendWhatsApp simulates when no channel", async () => {
-    const registry = new ToolRegistry();
-    registerTools(registry, makeDeps());
-    const tool = registry.get("sendWhatsApp");
-    const result = await tool.execute({ phone: "123", message: "Hola" });
-    expect(result.simulated).toBe(true);
-  });
-
-  it("sendWhatsApp uses channel when available", async () => {
-    const whatsappChannel = {
-      send: vi.fn().mockResolvedValue({ success: true }),
-    };
-    const registry = new ToolRegistry();
-    registerTools(registry, makeDeps({ whatsappChannel }));
-    const tool = registry.get("sendWhatsApp");
-    await tool.execute({ phone: "123", message: "Hola" });
-    expect(whatsappChannel.send).toHaveBeenCalledWith({
-      phone: "123",
-      message: "Hola",
-    });
   });
 
   it("createBudget tool exists and executes", async () => {

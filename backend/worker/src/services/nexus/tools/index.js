@@ -7,7 +7,6 @@ export function registerTools(registry, deps) {
     createUpdateRepairStatusTool(deps),
     createUpdateBudgetStatusTool(deps),
     createUpdatePrintOrderStatusTool(deps),
-    createSendWhatsAppTool(deps),
     createSearchInternetTool(deps),
     createCreateBudgetTool(deps),
     createCreateRepairTool(deps),
@@ -125,26 +124,6 @@ function createUpdatePrintOrderStatusTool(deps) {
     async execute(params) {
       await deps.update("print_orders", params.id, { status: params.status });
       return { id: params.id, status: params.status, updated: true };
-    },
-  };
-}
-
-function createSendWhatsAppTool(deps) {
-  return {
-    name: "sendWhatsApp",
-    description: "Send a WhatsApp message to a phone number",
-    inputSchema: {
-      phone: { type: "string", required: true },
-      message: { type: "string", required: true },
-    },
-    async execute(params) {
-      if (deps.whatsappChannel) {
-        return deps.whatsappChannel.send({
-          phone: params.phone,
-          message: params.message,
-        });
-      }
-      return { success: true, simulated: true, phone: params.phone };
     },
   };
 }
