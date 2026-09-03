@@ -12,14 +12,14 @@ preview_id = "0614142e73594eb78ec0feb3f427c0f6"
 ENVIRONMENT = "production"
 ADMIN_ALLOWED_EMAILS = "admin@tecnosanjuan.com"
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-OPENROUTER_MODEL = "openai/gpt-4o-mini"
+OPENROUTER_MODEL = "minimax/minimax-m3:free"
 SITE_URL = "https://tecnosanjuan.com"
 SUPABASE_URL = "https://iqbbdrgajlhkfbvsvzto.supabase.co"
 WHATSAPP_NUMBER = "+5492645123456"
 
 [env.production]
 name = "nexus-production"
-vars = { ENVIRONMENT = "production", ADMIN_ALLOWED_EMAILS = "admin@tecnosanjuan.com", OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1", OPENROUTER_MODEL = "openai/gpt-4o-mini", SITE_URL = "https://tecnosanjuan.com", SUPABASE_URL = "https://iqbbdrgajlhkfbvsvzto.supabase.co", WHATSAPP_NUMBER = "+5492645123456" }
+vars = { ENVIRONMENT = "production", ADMIN_ALLOWED_EMAILS = "admin@tecnosanjuan.com", OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1", OPENROUTER_MODEL = "minimax/minimax-m3:free", SITE_URL = "https://tecnosanjuan.com", SUPABASE_URL = "https://iqbbdrgajlhkfbvsvzto.supabase.co", WHATSAPP_NUMBER = "+5492645123456" }
 kv_namespaces = [{ binding = "SESSION_KV", id = "0614142e73594eb78ec0feb3f427c0f6", preview_id = "0614142e73594eb78ec0feb3f427c0f6" }]
 
 [triggers]
