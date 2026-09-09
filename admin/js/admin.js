@@ -3,7 +3,7 @@ import { adminGetAll, adminCreate, adminUpdate, adminDelete } from './api.js';
 import { Modal } from './components/Modal.js';
 import { DataTable } from './components/DataTable.js';
 import { FormBuilder } from './components/FormBuilder.js';
-import { MODULES } from './config.js';
+import { MODULES, SIDEBAR_GROUPS } from './config.js';
 
 document.addEventListener('DOMContentLoaded', () => {
   if (!isAuthenticated()) {
@@ -52,17 +52,58 @@ document.addEventListener('DOMContentLoaded', () => {
   let modal = new Modal();
   let currentData = [];
   let formBuilder = null;
+  let expandedGroups = new Set(['inicio', 'clientes']); // Default expanded groups
 
   function buildSidebar() {
-    sidebarNav.innerHTML = MODULES.map(m =>
-      `<a href="#" data-module="${m.id}" class="${m.id === 'business-info' ? 'active' : ''}">${m.icon || ''} ${m.label}</a>`
-    ).join('');
+    let html = '';
+    for (const group of SIDEBAR_GROUPS) {
+      const isExpanded = expandedGroups.has(group.id);
+      html += `
+        <div class="sidebar-group" data-group="${group.id}">
+          <button class="sidebar-group-toggle" aria-expanded="${isExpanded}" aria-controls="group-${group.id}" aria-label="${isExpanded ? 'Contraer' : 'Expandir'} ${group.label}">
+            <span class="sidebar-group-icon">${group.icon}</span>
+            <span class="sidebar-group-label">${group.label}</span>
+            <span class="sidebar-group-chevron" aria-hidden="true">${isExpanded ? '▼' : '▶'}</span>
+          </button>
+          <div class="sidebar-group-content" id="group-${group.id}" style="${isExpanded ? '' : 'display: none;'}">
+            ${group.modules.map(m => {
+              const isActive = m.id === 'business-info' ? 'active' : '';
+              return `<a href="#" data-module="${m.id}" class="${m.id === 'business-info' ? 'active' : ''}">${m.icon || ''} ${m.label}</a>`;
+            }).join('')}
+          </div>
+        </div>
+      `;
+    }
+    sidebarNav.innerHTML = html;
 
+    // Add click handlers for group toggles
+    sidebarNav.querySelectorAll('.sidebar-group-toggle').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const groupId = btn.closest('.sidebar-group').dataset.group;
+        const content = document.getElementById(`group-${groupId}`);
+        const isExpanded = expandedGroups.has(groupId);
+        
+        if (isExpanded) {
+          expandedGroups.delete(groupId);
+          btn.setAttribute('aria-expanded', 'false');
+          btn.setAttribute('aria-label', `Expandir ${btn.querySelector('.sidebar-group-label').textContent}`);
+          content.style.display = 'none';
+        } else {
+          expandedGroups.add(groupId);
+          btn.setAttribute('aria-expanded', 'true');
+          btn.setAttribute('aria-label', `Contraer ${btn.querySelector('.sidebar-group-label').textContent}`);
+          content.style.display = 'block';
+        }
+      });
+    });
+
+    // Module link clicks
     sidebarNav.addEventListener('click', (e) => {
       const link = e.target.closest('[data-module]');
       if (link) {
         e.preventDefault();
-        sidebarNav.querySelectorAll('a').forEach(a => a.classList.remove('active'));
+        sidebarNav.querySelectorAll('a[data-module]').forEach(a => a.classList.remove('active'));
         link.classList.add('active');
         closeSidebar();
         loadModule(link.dataset.module);
