@@ -66,9 +66,11 @@ document.addEventListener('DOMContentLoaded', () => {
             <span class="sidebar-group-chevron" aria-hidden="true">${isExpanded ? '▼' : '▶'}</span>
           </button>
           <div class="sidebar-group-content" id="group-${group.id}" style="${isExpanded ? '' : 'display: none;'}">
-            ${group.modules.map(m => {
-              const isActive = m.id === 'business-info' ? 'active' : '';
-              return `<a href="#" data-module="${m.id}" class="${m.id === 'business-info' ? 'active' : ''}">${m.icon || ''} ${m.label}</a>`;
+            ${group.modules.map(moduleId => {
+              const mod = MODULES.find(m => m.id === moduleId);
+              if (!mod) return '';
+              const isActive = moduleId === 'business-info' ? 'active' : '';
+              return `<a href="#" data-module="${moduleId}" class="${isActive}">${mod.icon || ''} ${mod.label}</a>`;
             }).join('')}
           </div>
         </div>
