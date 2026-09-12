@@ -22,81 +22,72 @@ function makeGroup(label, icon, modules) {
   };
 }
 
+// All modules (flat list for easy lookup by ID)
 export const MODULES = [
   // INICIO
-  makeViewModule('dashboard', 'Dashboard', '📊', './modules/dashboard/dashboard-view.js'),
+  { id: 'dashboard', label: 'Dashboard', icon: '📊', viewPath: './modules/dashboard/dashboard-view.js', custom: true },
 
   // CLIENTES
-  makeGroup('Clientes', '👥', [
-    makeViewModule('clients', 'Clientes', '👤', './modules/clients/clients-view.js'),
-    makeViewModule('notifications', 'Notificaciones', '🔔', './modules/notifications/notifications-view.js'),
-    makeViewModule('events', 'Eventos', '⚡', './modules/events/events-view.js'),
-  ],
+  { id: 'clients', label: 'Clientes', icon: '👤', viewPath: './modules/clients/clients-view.js' },
+  { id: 'notifications', label: 'Notificaciones', icon: '🔔', viewPath: './modules/notifications/notifications-view.js' },
+  { id: 'events', label: 'Eventos', icon: '⚡', viewPath: './modules/events/events-view.js' },
 
   // REPARACIONES
-  makeGroup('Reparaciones', '🔧', [
-    makeViewModule('repairs', 'Reparaciones', '🔧', './modules/repairs/repairs-view.js'),
-    makeViewModule('budgets', 'Presupuestos', '📋', './modules/budgets/budgets-view.js'),
-    makeViewModule('warranties', 'Garantías', '🛡️', './modules/warranties/warranties-view.js'),
-  ],
+  { id: 'repairs', label: 'Reparaciones', icon: '🔧', viewPath: './modules/repairs/repairs-view.js' },
+  { id: 'budgets', label: 'Presupuestos', icon: '📋', viewPath: './modules/budgets/budgets-view.js' },
+  { id: 'warranties', label: 'Garantías', icon: '🛡️', viewPath: './modules/warranties/warranties-view.js' },
 
   // CATÁLOGO
-  makeGroup('Catálogo', '📦', [
-    makeViewModule('categories', 'Categorías', '📂', './modules/categories/categories-view.js'),
-    makeViewModule('services', 'Servicios', '🔧', './modules/services/services-view.js'),
-    makeViewModule('prices', 'Precios', '💰', './modules/prices/prices-view.js'),
-    makeViewModule('promotions', 'Promociones', '🏷️', './modules/promotions/promotions-view.js'),
-    makeViewModule('products', 'Productos', '📦', './modules/products/products-view.js'),
-    makeViewModule('print-orders', 'Impresión 3D', '🖨️', './modules/print-orders/print-view.js'),
-  ],
+  { id: 'categories', label: 'Categorías', icon: '📂', viewPath: './modules/categories/categories-view.js' },
+  { id: 'services', label: 'Servicios', icon: '🔧', viewPath: './modules/services/services-view.js' },
+  { id: 'prices', label: 'Precios', icon: '💰', viewPath: './modules/prices/prices-view.js' },
+  { id: 'promotions', label: 'Promociones', icon: '🏷️', viewPath: './modules/promotions/promotions-view.js' },
+  { id: 'products', label: 'Productos', icon: '📦', viewPath: './modules/products/products-view.js' },
+  { id: 'print-orders', label: 'Impresión 3D', icon: '🖨️', viewPath: './modules/print-orders/print-view.js' },
 
   // CONTENIDO
-  makeGroup('Contenido', '📄', [
-    makeViewModule('faqs', 'Preguntas Frecuentes', '❓', './modules/faqs/faqs-view.js'),
-  ],
+  { id: 'faqs', label: 'Preguntas Frecuentes', icon: '❓', viewPath: './modules/faqs/faqs-view.js' },
 
   // NEGOCIO
-  makeGroup('Negocio', '🏢', [
-    {
-      id: 'business-info',
-      label: 'Información del Negocio',
-      icon: '🏪',
-      single: true,
-      fields: [
-        { key: 'name', label: 'Nombre', type: 'text', required: true },
-        { key: 'slogan', label: 'Slogan', type: 'text' },
-        { key: 'description', label: 'Descripción', type: 'textarea' },
-        { key: 'phone', label: 'WhatsApp', type: 'text', placeholder: '+54 9 340 5480010' },
-        { key: 'website', label: 'Sitio Web', type: 'url' },
-        { key: 'logo_url', label: 'Logo', type: 'file' },
-        { key: 'primary_color', label: 'Color Primario', type: 'color' },
-        { key: 'secondary_color', label: 'Color Secundario', type: 'color' },
-      ],
-    },
-    makeViewModule('hours', 'Horarios', '🕐', './modules/hours/hours-view.js'),
-    makeViewModule('social-media', 'Redes Sociales', '📱', './modules/social-media/social-media-view.js'),
-    makeViewModule('phones', 'Teléfonos', '📞', './modules/phones/phones-view.js'),
-    {
-      id: 'address',
-      label: 'Dirección',
-      icon: '📍',
-      single: true,
-      fields: [
-        { key: 'street', label: 'Calle', type: 'text', required: true },
-        { key: 'number', label: 'Número', type: 'text' },
-        { key: 'city', label: 'Ciudad', type: 'text', required: true },
-        { key: 'province', label: 'Provincia', type: 'text', required: true },
-        { key: 'postal_code', label: 'Código Postal', type: 'text' },
-        { key: 'latitude', label: 'Latitud', type: 'number', step: '0.0000001' },
-        { key: 'longitude', label: 'Longitud', type: 'number', step: '0.0000001' },
-        { key: 'maps_url', label: 'URL de Google Maps', type: 'url' },
-        { key: 'notes', label: 'Notas', type: 'textarea' },
-      ],
-    },
-  ],
+  {
+    id: 'business-info',
+    label: 'Información del Negocio',
+    icon: '🏪',
+    single: true,
+    fields: [
+      { key: 'name', label: 'Nombre', type: 'text', required: true },
+      { key: 'slogan', label: 'Slogan', type: 'text' },
+      { key: 'description', label: 'Descripción', type: 'textarea' },
+      { key: 'phone', label: 'WhatsApp', type: 'text', placeholder: '+54 9 340 5480010' },
+      { key: 'website', label: 'Sitio Web', type: 'url' },
+      { key: 'logo_url', label: 'Logo', type: 'file' },
+      { key: 'primary_color', label: 'Color Primario', type: 'color' },
+      { key: 'secondary_color', label: 'Color Secundario', type: 'color' },
+    ],
+  },
+  { id: 'hours', label: 'Horarios', icon: '🕐', viewPath: './modules/hours/hours-view.js' },
+  { id: 'social-media', label: 'Redes Sociales', icon: '📱', viewPath: './modules/social-media/social-media-view.js' },
+  { id: 'phones', label: 'Teléfonos', icon: '📞', viewPath: './modules/phones/phones-view.js' },
+  {
+    id: 'address',
+    label: 'Dirección',
+    icon: '📍',
+    single: true,
+    fields: [
+      { key: 'street', label: 'Calle', type: 'text', required: true },
+      { key: 'number', label: 'Número', type: 'text' },
+      { key: 'city', label: 'Ciudad', type: 'text', required: true },
+      { key: 'province', label: 'Provincia', type: 'text', required: true },
+      { key: 'postal_code', label: 'Código Postal', type: 'text' },
+      { key: 'latitude', label: 'Latitud', type: 'number', step: '0.0000001' },
+      { key: 'longitude', label: 'Longitud', type: 'number', step: '0.0000001' },
+      { key: 'maps_url', label: 'URL de Google Maps', type: 'url' },
+      { key: 'notes', label: 'Notas', type: 'textarea' },
+    ],
+  },
 
   // EXTRAS (maintained for compatibility, not shown in sidebar by default)
-  makeViewModule('conversations', 'Conversaciones', '💬', './modules/conversations/conversations-view.js'),
+  { id: 'conversations', label: 'Conversaciones', icon: '💬', viewPath: './modules/conversations/conversations-view.js' },
   {
     id: 'ai-assistant',
     label: 'Asistente IA',
@@ -120,7 +111,7 @@ export const MODULES = [
       { key: 'max_tokens', label: 'Máximo de Tokens', type: 'number' },
     ],
   },
-  makeViewModule('featured-messages', 'Mensajes Destacados', '📢', './modules/featured-messages/featured-messages-view.js'),
+  { id: 'featured-messages', label: 'Mensajes Destacados', icon: '📢', viewPath: './modules/featured-messages/featured-messages-view.js' },
   {
     id: 'emails',
     label: 'Correos Electrónicos',
@@ -132,7 +123,7 @@ export const MODULES = [
       { key: 'image_url', label: 'Imagen', type: 'file' },
     ],
   },
-  makeViewModule('print-orders', 'Impresión 3D', '🖨️', './modules/print-orders/print-view.js'),
+  { id: 'print-orders', label: 'Impresión 3D', icon: '🖨️', viewPath: './modules/print-orders/print-view.js' },
 ];
 
 // Sidebar group definitions for rendering
